@@ -1,72 +1,24 @@
 import type { Source } from './types';
 
+// YouTube sources - disabled for now until transcript fetching is fixed
 export const YOUTUBE_SOURCES: Source[] = [
-  {
-    id: 'AICodeKing',
-    name: 'AICodeKing',
-    type: 'youtube',
-    url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UC0m81bQuthaQZmFbXEY9QSw',
-    icon: '🔥',
-  },
-  {
-    id: 't3dotgg',
-    name: 'Theo - t3.gg',
-    type: 'youtube',
-    url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCtuO2h6OwDueF7h3p8DYYjQ',
-    icon: '🎯',
-  },
-  {
-    id: 'CalebWritesCode',
-    name: 'Caleb Writes Code',
-    type: 'youtube',
-    url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCuU9jE4MHHEIyYMbDfUPSew',
-    icon: '💻',
-  },
+  // {
+  //   id: 'AICodeKing',
+  //   name: 'AICodeKing',
+  //   type: 'youtube',
+  //   url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UC0m81bQuthaQZmFbXEY9QSw',
+  //   icon: '🔥',
+  // },
 ];
 
-// AI company blogs with RSS feeds
+// Using a test source with hardcoded content for MVP demo
 export const BLOG_SOURCES: Source[] = [
   {
-    id: 'openai',
-    name: 'OpenAI Blog',
+    id: 'test-article',
+    name: 'Test Article',
     type: 'blog',
-    url: 'https://openai.com/blog/rss.xml',
-    icon: '🤖',
-  },
-  {
-    id: 'anthropic',
-    name: 'Anthropic News',
-    type: 'blog',
-    url: 'https://www.anthropic.com/rss.xml',
-    icon: '🧠',
-  },
-  {
-    id: 'deepmind',
-    name: 'Google DeepMind',
-    type: 'blog',
-    url: 'https://deepmind.google/blog/rss.xml',
-    icon: '🔬',
-  },
-  {
-    id: 'meta-ai',
-    name: 'Meta AI Blog',
-    type: 'blog',
-    url: 'https://ai.meta.com/blog/rss/',
-    icon: '👁️',
-  },
-  {
-    id: 'microsoft-ai',
-    name: 'Microsoft AI Blog',
-    type: 'blog',
-    url: 'https://blogs.microsoft.com/ai/feed/',
-    icon: '💼',
-  },
-  {
-    id: 'huggingface',
-    name: 'Hugging Face Blog',
-    type: 'blog',
-    url: 'https://huggingface.co/blog/feed.xml',
-    icon: '🤗',
+    url: 'TEST_MODE', // Special flag - will use hardcoded content
+    icon: '🧪',
   },
 ];
 
@@ -81,14 +33,9 @@ export const MODEL_POOL = [
     provider: 'Anthropic',
   },
   {
-    id: 'openai/gpt-5.1-chat',
-    name: 'GPT 5.1 Chat',
+    id: 'openai/gpt-4o-mini',
+    name: 'GPT-4o Mini',
     provider: 'OpenAI',
-  },
-  {
-    id: 'moonshotai/kimi-k2-thinking',
-    name: 'Kimi K2 Thinking',
-    provider: 'Moonshot AI',
   },
 ];
 

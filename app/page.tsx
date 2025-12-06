@@ -20,19 +20,26 @@ const SELECTED_SOURCES_KEY = 'ai-news-selected-sources';
 // Get initial sources from localStorage or default to all
 function getInitialSources(): string[] {
   if (typeof window === 'undefined') return ALL_SOURCES.map(s => s.id);
+  
+  const validIds = ALL_SOURCES.map(s => s.id);
+  
   try {
     const saved = localStorage.getItem(SELECTED_SOURCES_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
+      if (Array.isArray(parsed)) {
+        // Filter to only valid source IDs that exist in current config
+        const validSaved = parsed.filter(id => validIds.includes(id));
+        if (validSaved.length > 0) {
+          return validSaved;
+        }
       }
     }
   } catch (e) {
     console.error('Failed to load saved sources:', e);
   }
-  // Default to all sources
-  return ALL_SOURCES.map(s => s.id);
+  // Default to all sources if no valid saved sources
+  return validIds;
 }
 
 export default function Home() {

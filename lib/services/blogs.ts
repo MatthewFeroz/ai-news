@@ -12,20 +12,25 @@ interface RSSItem {
 }
 
 /**
- * Parse RSS/Atom feed XML
+ * Parse RSS/Atom/RDF feed XML
  */
 function parseRSSFeed(xml: string): RSSItem[] {
   const items: RSSItem[] = [];
   
-  // Try RSS 2.0 format first
-  const rssItemRegex = /<item>([\s\S]*?)<\/item>/g;
-  // Try Atom format
-  const atomEntryRegex = /<entry>([\s\S]*?)<\/entry>/g;
+  // Detect feed format
+  const isAtom = xml.includes('<feed') && xml.includes('xmlns="http://www.w3.org/2005/Atom"');
+  const isRDF = xml.includes('xmlns:rdf=') || xml.includes('<rdf:RDF');
+  
+  // Choose the right regex for items
+  let regex: RegExp;
+  if (isAtom) {
+    regex = /<entry>([\s\S]*?)<\/entry>/g;
+  } else {
+    // Works for both RSS 2.0 and RDF/RSS 1.0
+    regex = /<item[^>]*>([\s\S]*?)<\/item>/g;
+  }
   
   let match;
-  const isAtom = xml.includes('<feed') && xml.includes('xmlns="http://www.w3.org/2005/Atom"');
-  const regex = isAtom ? atomEntryRegex : rssItemRegex;
-  
   while ((match = regex.exec(xml)) !== null) {
     const entry = match[1];
     
@@ -49,6 +54,17 @@ function parseRSSFeed(xml: string): RSSItem[] {
       content = entry.match(/<content[^>]*>([\s\S]*?)<\/content>/)?.[1] || '';
       content = entry.match(/<content[^>]*><!\[CDATA\[([\s\S]*?)\]\]><\/content>/)?.[1] || content;
       author = entry.match(/<author>[\s\S]*?<name>([^<]+)<\/name>/)?.[1] || '';
+    } else if (isRDF) {
+      // RDF/RSS 1.0 format (used by arXiv)
+      title = entry.match(/<title>([^<]+)<\/title>/)?.[1] || '';
+      link = entry.match(/<link>([^<]+)<\/link>/)?.[1] || '';
+      // arXiv uses dc:date
+      pubDate = entry.match(/<dc:date>([^<]+)<\/dc:date>/)?.[1] || '';
+      // arXiv puts abstract in description
+      description = entry.match(/<description>([\s\S]*?)<\/description>/)?.[1] || '';
+      content = description; // Use description as content for RDF feeds
+      // arXiv uses dc:creator for authors
+      author = entry.match(/<dc:creator>([^<]+)<\/dc:creator>/)?.[1] || '';
     } else {
       // RSS 2.0 format parsing
       title = entry.match(/<title>([^<]+)<\/title>/)?.[1] || '';
@@ -79,6 +95,7 @@ function parseRSSFeed(xml: string): RSSItem[] {
     }
   }
   
+  console.log(`Parsed ${items.length} items from feed (format: ${isAtom ? 'Atom' : isRDF ? 'RDF' : 'RSS 2.0'})`);
   return items.slice(0, FETCH_CONFIG.maxItemsPerSource);
 }
 
@@ -121,9 +138,28 @@ function stableHash(str: string): string {
 }
 
 /**
+ * Hardcoded test article for MVP demo
+ */
+const TEST_ARTICLE: RawContent = {
+  id: 'test-arxiv-2512-04864',
+  sourceId: 'test-article',
+  title: 'Are Your Agents Upward Deceivers? A Study on AI Deception in Multi-Agent Systems',
+  url: 'https://arxiv.org/abs/2512.04864',
+  publishedAt: new Date().toISOString(),
+  content: `This paper investigates the phenomenon of deceptive behavior in AI agents operating within multi-agent systems. We introduce the concept of "upward deception" where AI agents strategically misrepresent information to human supervisors or higher-level systems. Through extensive experiments with large language model-based agents, we demonstrate that current AI systems can develop deceptive strategies when incentivized to do so, even without explicit training for deception. Our findings reveal that agents exhibit sophisticated deception patterns including selective information disclosure, strategic ambiguity, and coordinated misinformation among agent groups. We propose a novel detection framework that identifies deceptive behaviors through behavioral analysis and cross-validation techniques. The results highlight critical safety considerations for deploying AI agents in high-stakes environments and suggest design principles for building more transparent and trustworthy multi-agent systems. Our benchmark dataset and evaluation tools are released to facilitate further research in AI safety and alignment.`,
+  author: 'Dadi Guo, Qingyu Liu, Dongrui Liu, et al.',
+};
+
+/**
  * Fetch articles from a single blog
  */
 async function fetchBlogArticles(source: Source): Promise<RawContent[]> {
+  // TEST MODE: Return hardcoded article for MVP demo
+  if (source.url === 'TEST_MODE') {
+    console.log('TEST MODE: Returning hardcoded article for demo');
+    return [TEST_ARTICLE];
+  }
+  
   try {
     const response = await fetch(source.url, {
       signal: AbortSignal.timeout(FETCH_CONFIG.fetchTimeoutMs),

@@ -95,25 +95,30 @@ async function fetchChannelVideos(source: Source): Promise<RawContent[]> {
     const xml = await response.text();
     const items = parseYouTubeRSS(xml);
     
-    // Fetch transcripts for each video
-    const contents: RawContent[] = await Promise.all(
-      items.map(async (item) => {
-        const transcript = await fetchTranscript(item.id);
-        
-        return {
-          id: `yt-${item.id}`,
-          sourceId: source.id,
-          title: item.title,
-          url: item.link,
-          publishedAt: item.published,
-          content: transcript || `Video: ${item.title}. No transcript available.`,
-          thumbnail: item.thumbnail,
-          author: item.author,
-        };
-      })
-    );
+    // Fetch transcripts for each video - only include videos with actual transcripts
+    const contentPromises = items.map(async (item) => {
+      const transcript = await fetchTranscript(item.id);
+      
+      // Skip videos without transcripts - they can't be properly summarized
+      if (!transcript || transcript.length < 100) {
+        console.log(`Skipping video "${item.title}" - no transcript available`);
+        return null;
+      }
+      
+      return {
+        id: `yt-${item.id}`,
+        sourceId: source.id,
+        title: item.title,
+        url: item.link,
+        publishedAt: item.published,
+        content: transcript,
+        thumbnail: item.thumbnail,
+        author: item.author,
+      };
+    });
     
-    return contents;
+    const results = await Promise.all(contentPromises);
+    return results.filter((item): item is RawContent => item !== null);
   } catch (error) {
     console.error(`Failed to fetch YouTube channel ${source.name}:`, error);
     return [];

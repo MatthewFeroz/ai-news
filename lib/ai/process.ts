@@ -1,4 +1,4 @@
-import { generateObject } from 'ai';
+import { generateText } from 'ai';
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import { z } from 'zod';
 import type { RawContent, ProcessedContent, ModelSummary, AISummaryResponse, ContentCategory } from '../types';
@@ -11,10 +11,10 @@ const openrouter = createOpenRouter({
   apiKey: process.env.OPENROUTER_API_KEY,
 });
 
-// Zod schema for AI response
+// Zod schema for AI response with length limits
 const summarySchema = z.object({
-  summary: z.string().describe('A concise 2-3 sentence summary of the content'),
-  highlights: z.array(z.string()).describe('3-5 key takeaways or highlights'),
+  summary: z.string().max(300).describe('A concise 2-3 sentence summary, max 300 characters'),
+  highlights: z.array(z.string().max(100)).max(5).describe('3-5 short takeaways, each max 100 characters'),
   category: z.enum([
     'research',
     'product-launch', 
@@ -35,22 +35,48 @@ async function generateSummaryWithModel(
 ): Promise<ModelSummary | null> {
   const startTime = Date.now();
   
+  // Combine title and content for better context
+  const fullContent = `${content.title}\n\n${content.content}`;
+  
+  // Skip if combined content is still too short (less than 50 chars)
+  if (fullContent.length < 50) {
+    console.log(`Skipping "${content.title}" - content too short (${fullContent.length} chars)`);
+    return null;
+  }
+  
   try {
-    const { object } = await generateObject({
+    const { text } = await generateText({
       model: openrouter(model.id),
-      schema: summarySchema,
-      prompt: `Analyze and summarize the following content from "${content.title}":
+      prompt: `Summarize this news article. Return ONLY a JSON object, no markdown.
 
-${content.content}
+${fullContent.slice(0, 10000)}
 
-Provide:
-1. A concise 2-3 sentence summary
-2. 3-5 key highlights or takeaways (as bullet points)
-3. The best category for this content`,
+Return this exact JSON structure (no code blocks, no explanation):
+{"summary": "2-3 sentence summary (max 300 chars)", "highlights": ["point 1", "point 2", "point 3"], "category": "research"}
+
+Valid categories: research, product-launch, tutorial, opinion, news, analysis, other`,
     });
     
     const processingTime = Date.now() - startTime;
-    const response = object as AISummaryResponse;
+    
+    // Strip markdown code blocks if present (handles various formats)
+    let jsonStr = text.trim();
+    
+    // Remove ```json or ``` at start
+    jsonStr = jsonStr.replace(/^```(?:json)?\s*\n?/i, '');
+    // Remove ``` at end (with possible whitespace)
+    jsonStr = jsonStr.replace(/\n?\s*```\s*$/i, '');
+    
+    // Also try to extract JSON if there's other text
+    const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      jsonStr = jsonMatch[0];
+    }
+    
+    console.log(`${model.name} response (cleaned):`, jsonStr.substring(0, 100) + '...');
+    
+    // Parse JSON
+    const response = JSON.parse(jsonStr) as AISummaryResponse;
     
     // Calculate metrics for this summary
     const metrics = calculateMetrics(response.summary, response.highlights, processingTime);

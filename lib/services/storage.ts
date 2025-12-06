@@ -29,7 +29,6 @@ function getRedis(): Redis {
     
     redis = new Redis(redisUrl, {
       maxRetriesPerRequest: 3,
-      retryDelayOnFailover: 100,
       lazyConnect: true,
     });
     
@@ -106,6 +105,7 @@ export async function writeStorageData(data: StorageData): Promise<void> {
 
 /**
  * Add new processed contents (deduplicates by ID)
+ * For MVP/test mode: always updates test article with fresh summaries
  */
 export async function addContents(newContents: ProcessedContent[]): Promise<void> {
   const data = await readStorageData();
@@ -113,8 +113,18 @@ export async function addContents(newContents: ProcessedContent[]): Promise<void
   // Create a map of existing content IDs
   const existingIds = new Set(data.contents.map(c => c.rawContentId));
   
-  // Filter out duplicates
-  const uniqueNew = newContents.filter(c => !existingIds.has(c.rawContentId));
+  // Filter out duplicates (but allow test article updates)
+  const uniqueNew = newContents.filter(c => {
+    // Always allow test article to be updated with new summaries
+    if (c.rawContentId === 'test-arxiv-2512-04864') {
+      // Remove old test article to replace with new one
+      data.contents = data.contents.filter(existing => existing.rawContentId !== 'test-arxiv-2512-04864');
+      return true;
+    }
+    return !existingIds.has(c.rawContentId);
+  });
+  
+  console.log(`Adding ${uniqueNew.length} new items (${uniqueNew.map(c => c.summaries.length + ' summaries').join(', ')})`);
   
   // Add new contents at the beginning (most recent first)
   data.contents = [...uniqueNew, ...data.contents];
