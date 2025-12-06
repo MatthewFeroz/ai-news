@@ -168,16 +168,24 @@ async function fetchBlogArticles(source: Source): Promise<RawContent[]> {
 }
 
 /**
- * Fetch all blog content from configured sources
+ * Fetch blog content from configured sources
+ * @param sourceIds - Optional array of source IDs to filter. If empty/undefined, fetches from all sources.
  */
-export async function fetchAllBlogContent(): Promise<RawContent[]> {
-  if (BLOG_SOURCES.length === 0) {
-    console.log('No blog sources configured');
+export async function fetchAllBlogContent(sourceIds?: string[]): Promise<RawContent[]> {
+  // Filter sources if specific IDs are provided
+  const sources = sourceIds && sourceIds.length > 0
+    ? BLOG_SOURCES.filter(s => sourceIds.includes(s.id))
+    : BLOG_SOURCES;
+  
+  if (sources.length === 0) {
+    console.log('No blog sources to fetch (none selected or configured)');
     return [];
   }
   
+  console.log(`Fetching from ${sources.length} blog(s): ${sources.map(s => s.name).join(', ')}`);
+  
   const results = await Promise.all(
-    BLOG_SOURCES.map(source => fetchBlogArticles(source))
+    sources.map(source => fetchBlogArticles(source))
   );
   
   return results.flat();

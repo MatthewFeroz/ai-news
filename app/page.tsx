@@ -4,12 +4,35 @@ import { useState, useEffect, useCallback } from 'react';
 import { NewsCard } from './components/NewsCard';
 import { FilterBar } from './components/FilterBar';
 import { ModelStatsPanel } from './components/ModelStatsPanel';
-import type { ProcessedContent, ModelStats, ContentCategory } from '@/lib/types';
+import { SourceSelector } from './components/SourceSelector';
+import { ALL_SOURCES } from '@/lib/config';
+import type { ProcessedContent, ModelStats } from '@/lib/types';
 
 interface NewsResponse {
   contents: ProcessedContent[];
   stats: ModelStats[];
   lastUpdated: string;
+}
+
+// LocalStorage key for persisting selected sources
+const SELECTED_SOURCES_KEY = 'ai-news-selected-sources';
+
+// Get initial sources from localStorage or default to all
+function getInitialSources(): string[] {
+  if (typeof window === 'undefined') return ALL_SOURCES.map(s => s.id);
+  try {
+    const saved = localStorage.getItem(SELECTED_SOURCES_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.error('Failed to load saved sources:', e);
+  }
+  // Default to all sources
+  return ALL_SOURCES.map(s => s.id);
 }
 
 export default function Home() {
@@ -20,9 +43,28 @@ export default function Home() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
+  // Source selection (persisted to localStorage)
+  const [selectedSources, setSelectedSources] = useState<string[]>([]);
+  const [isSourceSelectorOpen, setIsSourceSelectorOpen] = useState(false);
+  
   // Filters
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedType, setSelectedType] = useState<'all' | 'youtube' | 'blog'>('all');
+  
+  // Initialize selected sources from localStorage on mount
+  useEffect(() => {
+    setSelectedSources(getInitialSources());
+  }, []);
+  
+  // Save selected sources to localStorage when changed
+  const handleSourcesChange = (sources: string[]) => {
+    setSelectedSources(sources);
+    try {
+      localStorage.setItem(SELECTED_SOURCES_KEY, JSON.stringify(sources));
+    } catch (e) {
+      console.error('Failed to save sources:', e);
+    }
+  };
   
   // Fetch news data
   const fetchNews = useCallback(async () => {
@@ -51,11 +93,22 @@ export default function Home() {
     fetchNews();
   }, [fetchNews]);
   
-  // Trigger content refresh (calls the cron endpoint)
+  // Trigger content refresh (calls the cron endpoint with selected sources)
   const handleRefresh = async () => {
+    if (selectedSources.length === 0) {
+      setError('Please select at least one source to fetch');
+      return;
+    }
+    
     setIsRefreshing(true);
+    setError(null);
     try {
-      const response = await fetch('/api/cron', { method: 'POST' });
+      // Send only selected sources to reduce AI processing costs
+      const response = await fetch('/api/cron', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sourceIds: selectedSources }),
+      });
       const result = await response.json();
       
       if (result.success) {
@@ -122,8 +175,15 @@ export default function Home() {
     return date.toLocaleDateString();
   };
 
+  // Close source selector when clicking outside
+  const handleClickOutside = () => {
+    if (isSourceSelectorOpen) {
+      setIsSourceSelectorOpen(false);
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-black">
+    <div className="min-h-screen bg-black" onClick={handleClickOutside}>
       {/* Gradient background */}
       <div className="fixed inset-0 bg-gradient-to-br from-zinc-900 via-black to-zinc-900" />
       <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-emerald-900/20 via-transparent to-transparent" />
@@ -140,10 +200,19 @@ export default function Home() {
                   <p className="text-xs text-zinc-500">Aggregated & Summarized</p>
                 </div>
               </div>
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
                 <div className="text-xs text-zinc-600">
                   Updated {formatLastUpdated(lastUpdated)}
                 </div>
+                
+                {/* Source Selector */}
+                <SourceSelector
+                  selectedSources={selectedSources}
+                  onSourcesChange={handleSourcesChange}
+                  isOpen={isSourceSelectorOpen}
+                  onToggle={() => setIsSourceSelectorOpen(!isSourceSelectorOpen)}
+                />
+                
                 <button
                   onClick={async () => {
                     await fetch('/api/cron/email', { method: 'POST' });
@@ -194,16 +263,22 @@ export default function Home() {
                   <div className="text-center py-20">
                     <span className="text-4xl mb-4 block">📰</span>
                     <h3 className="text-lg font-medium text-zinc-300 mb-2">No news yet</h3>
-                    <p className="text-sm text-zinc-500 mb-6">
-                      Click the refresh button to fetch the latest AI news
+                    <p className="text-sm text-zinc-500 mb-4">
+                      Select your sources and click refresh to fetch the latest AI news
                     </p>
-                    <button
-                      onClick={handleRefresh}
-                      disabled={isRefreshing}
-                      className="px-6 py-2.5 bg-emerald-500 text-black font-medium rounded-xl hover:bg-emerald-400 transition-colors disabled:opacity-50"
-                    >
-                      {isRefreshing ? 'Fetching...' : 'Fetch News'}
-                    </button>
+                    <div className="flex flex-col items-center gap-3">
+                      <p className="text-xs text-zinc-600">
+                        {selectedSources.length} source{selectedSources.length !== 1 ? 's' : ''} selected
+                        {selectedSources.length > 0 && ` (~${selectedSources.length * 2} AI calls)`}
+                      </p>
+                      <button
+                        onClick={handleRefresh}
+                        disabled={isRefreshing || selectedSources.length === 0}
+                        className="px-6 py-2.5 bg-emerald-500 text-black font-medium rounded-xl hover:bg-emerald-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isRefreshing ? 'Fetching...' : selectedSources.length === 0 ? 'Select Sources First' : 'Fetch News'}
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   contents.map((content) => (

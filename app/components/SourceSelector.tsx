@@ -38,7 +38,7 @@ export function SourceSelector({
   const blogSelected = BLOG_SOURCES.filter(s => selectedSources.includes(s.id)).length;
 
   return (
-    <div className="relative">
+    <div className="relative" onClick={(e) => e.stopPropagation()}>
       {/* Toggle Button */}
       <button
         onClick={onToggle}
