@@ -121,16 +121,24 @@ async function fetchChannelVideos(source: Source): Promise<RawContent[]> {
 }
 
 /**
- * Fetch all YouTube content from configured channels
+ * Fetch YouTube content from configured channels
+ * @param sourceIds - Optional array of source IDs to filter. If empty/undefined, fetches from all sources.
  */
-export async function fetchAllYouTubeContent(): Promise<RawContent[]> {
-  if (YOUTUBE_SOURCES.length === 0) {
-    console.log('No YouTube sources configured');
+export async function fetchAllYouTubeContent(sourceIds?: string[]): Promise<RawContent[]> {
+  // Filter sources if specific IDs are provided
+  const sources = sourceIds && sourceIds.length > 0
+    ? YOUTUBE_SOURCES.filter(s => sourceIds.includes(s.id))
+    : YOUTUBE_SOURCES;
+  
+  if (sources.length === 0) {
+    console.log('No YouTube sources to fetch (none selected or configured)');
     return [];
   }
   
+  console.log(`Fetching from ${sources.length} YouTube channel(s): ${sources.map(s => s.name).join(', ')}`);
+  
   const results = await Promise.all(
-    YOUTUBE_SOURCES.map(source => fetchChannelVideos(source))
+    sources.map(source => fetchChannelVideos(source))
   );
   
   return results.flat();

@@ -1,21 +1,44 @@
-import { promises as fs } from 'fs';
-import path from 'path';
+import Redis from 'ioredis';
 import type { StorageData, ProcessedContent, ModelComparison, ModelStats, ModelSummary } from '../types';
 import { calculateModelStats } from '../ai/metrics';
 import { MODEL_POOL } from '../config';
 
-const DATA_DIR = path.join(process.cwd(), 'data');
-const STORAGE_FILE = path.join(DATA_DIR, 'news-data.json');
+// Redis keys
+const KEYS = {
+  contents: 'news:contents',
+  comparisons: 'news:comparisons',
+  metadata: 'news:metadata',
+};
+
+// Redis client singleton
+let redis: Redis | null = null;
 
 /**
- * Ensure data directory exists
+ * Get Redis client (creates singleton)
  */
-async function ensureDataDir(): Promise<void> {
-  try {
-    await fs.mkdir(DATA_DIR, { recursive: true });
-  } catch {
-    // Directory exists
+function getRedis(): Redis {
+  if (!redis) {
+    const redisUrl = process.env.STORAGE_REDIS_URL;
+    
+    if (!redisUrl) {
+      throw new Error(
+        'STORAGE_REDIS_URL environment variable is not configured. ' +
+        'Please set it to your Redis connection URL.'
+      );
+    }
+    
+    redis = new Redis(redisUrl, {
+      maxRetriesPerRequest: 3,
+      retryDelayOnFailover: 100,
+      lazyConnect: true,
+    });
+    
+    redis.on('error', (err) => {
+      console.error('Redis connection error:', err);
+    });
   }
+  
+  return redis;
 }
 
 /**
@@ -30,26 +53,55 @@ function getDefaultData(): StorageData {
 }
 
 /**
- * Read storage data from file
+ * Read all storage data from Redis
  */
 export async function readStorageData(): Promise<StorageData> {
-  await ensureDataDir();
-  
   try {
-    const data = await fs.readFile(STORAGE_FILE, 'utf-8');
-    return JSON.parse(data) as StorageData;
-  } catch {
-    // File doesn't exist or is invalid
+    const client = getRedis();
+    
+    const [contentsJson, comparisonsJson, metadataJson] = await Promise.all([
+      client.get(KEYS.contents),
+      client.get(KEYS.comparisons),
+      client.get(KEYS.metadata),
+    ]);
+    
+    const contents: ProcessedContent[] = contentsJson ? JSON.parse(contentsJson) : [];
+    const comparisons: ModelComparison[] = comparisonsJson ? JSON.parse(comparisonsJson) : [];
+    const metadata = metadataJson ? JSON.parse(metadataJson) : { lastFetchedAt: new Date().toISOString() };
+    
+    return {
+      contents,
+      comparisons,
+      lastFetchedAt: metadata.lastFetchedAt,
+      lastEmailSentAt: metadata.lastEmailSentAt,
+    };
+  } catch (error) {
+    console.error('Failed to read from Redis:', error);
     return getDefaultData();
   }
 }
 
 /**
- * Write storage data to file
+ * Write all storage data to Redis
  */
 export async function writeStorageData(data: StorageData): Promise<void> {
-  await ensureDataDir();
-  await fs.writeFile(STORAGE_FILE, JSON.stringify(data, null, 2), 'utf-8');
+  try {
+    const client = getRedis();
+    
+    const metadata = {
+      lastFetchedAt: data.lastFetchedAt,
+      lastEmailSentAt: data.lastEmailSentAt,
+    };
+    
+    await Promise.all([
+      client.set(KEYS.contents, JSON.stringify(data.contents)),
+      client.set(KEYS.comparisons, JSON.stringify(data.comparisons)),
+      client.set(KEYS.metadata, JSON.stringify(metadata)),
+    ]);
+  } catch (error) {
+    console.error('Failed to write to Redis:', error);
+    throw error;
+  }
 }
 
 /**
@@ -208,4 +260,33 @@ export async function getStorageMetadata(): Promise<{
   };
 }
 
+/**
+ * Clear all data (useful for testing)
+ */
+export async function clearAllData(): Promise<void> {
+  try {
+    const client = getRedis();
+    await Promise.all([
+      client.del(KEYS.contents),
+      client.del(KEYS.comparisons),
+      client.del(KEYS.metadata),
+    ]);
+  } catch (error) {
+    console.error('Failed to clear Redis data:', error);
+    throw error;
+  }
+}
 
+/**
+ * Test Redis connection
+ */
+export async function testConnection(): Promise<boolean> {
+  try {
+    const client = getRedis();
+    await client.ping();
+    return true;
+  } catch (error) {
+    console.error('Redis connection test failed:', error);
+    return false;
+  }
+}
