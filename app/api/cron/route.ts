@@ -14,11 +14,17 @@ export const dynamic = 'force-dynamic';
  * Called by Vercel Cron or manually
  */
 export async function GET(request: Request) {
-  // Verify cron secret in production
-  const authHeader = request.headers.get('authorization');
-  if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    // Allow without auth in development
-    if (process.env.NODE_ENV === 'production') {
+  // Enforce authentication in production
+  if (process.env.NODE_ENV === 'production') {
+    // Require CRON_SECRET to be configured
+    if (!process.env.CRON_SECRET) {
+      console.error('CRON_SECRET environment variable is not configured');
+      return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 });
+    }
+    
+    // Verify the authorization header
+    const authHeader = request.headers.get('authorization');
+    if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
   }

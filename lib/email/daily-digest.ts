@@ -204,7 +204,7 @@ function generateEmailHTML(contents: ProcessedContent[], stats: ModelStats[]): s
 /**
  * Send daily digest email
  */
-export async function sendDailyDigest(): Promise<{ success: boolean; error?: string }> {
+export async function sendDailyDigest(): Promise<{ success: boolean; message?: string; error?: string }> {
   try {
     const emailTo = process.env.EMAIL_TO;
     if (!emailTo) {
@@ -223,7 +223,7 @@ export async function sendDailyDigest(): Promise<{ success: boolean; error?: str
     
     if (recentContents.length === 0) {
       console.log('No recent content to send');
-      return { success: true, error: 'No recent content' };
+      return { success: true, message: 'No recent content to send' };
     }
     
     const html = generateEmailHTML(recentContents, stats);
@@ -242,7 +242,7 @@ export async function sendDailyDigest(): Promise<{ success: boolean; error?: str
     
     await updateLastEmailSent();
     
-    return { success: true };
+    return { success: true, message: 'Daily digest sent successfully' };
   } catch (error) {
     console.error('Failed to send digest:', error);
     return { 

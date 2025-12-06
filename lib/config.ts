@@ -5,24 +5,22 @@ export const YOUTUBE_SOURCES: Source[] = [
     id: 'AICodeKing',
     name: 'AICodeKing',
     type: 'youtube',
-    url: 'https://www.youtube.com/@AICodeKing',
+    url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UC0m81bQuthaQZmFbXEY9QSw',
     icon: '🔥',
   },
-
   {
     id: 't3dotgg',
-    name: 't3dotgg',
+    name: 'Theo - t3.gg',
     type: 'youtube',
-    url: 'https://www.youtube.com/@t3dotgg',
-    icon: '🔥',
+    url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCtuO2h6OwDueF7h3p8DYYjQ',
+    icon: '🎯',
   },
-
   {
     id: 'CalebWritesCode',
-    name: 'CalebWritesCode',
+    name: 'Caleb Writes Code',
     type: 'youtube',
-    url: 'https://www.youtube.com/@CalebWritesCode',
-    icon: '🔥',
+    url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCuU9jE4MHHEIyYMbDfUPSew',
+    icon: '💻',
   },
 ];
 

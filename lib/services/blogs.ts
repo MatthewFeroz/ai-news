@@ -108,6 +108,19 @@ function stripHTML(html: string): string {
 }
 
 /**
+ * Generate a stable hash from a string (for creating consistent IDs)
+ */
+function stableHash(str: string): string {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32-bit integer
+  }
+  return Math.abs(hash).toString(36);
+}
+
+/**
  * Fetch articles from a single blog
  */
 async function fetchBlogArticles(source: Source): Promise<RawContent[]> {
@@ -136,7 +149,7 @@ async function fetchBlogArticles(source: Source): Promise<RawContent[]> {
       }
       
       return {
-        id: `blog-${source.id}-${Date.now()}-${index}`,
+        id: `blog-${source.id}-${stableHash(item.link)}`,
         sourceId: source.id,
         title: item.title,
         url: item.link,
