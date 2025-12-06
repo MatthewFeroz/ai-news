@@ -1,65 +1,269 @@
-import Image from "next/image";
+'use client';
+
+import { useState, useEffect, useCallback } from 'react';
+import { NewsCard } from './components/NewsCard';
+import { FilterBar } from './components/FilterBar';
+import { ModelStatsPanel } from './components/ModelStatsPanel';
+import type { ProcessedContent, ModelStats, ContentCategory } from '@/lib/types';
+
+interface NewsResponse {
+  contents: ProcessedContent[];
+  stats: ModelStats[];
+  lastUpdated: string;
+}
 
 export default function Home() {
+  const [contents, setContents] = useState<ProcessedContent[]>([]);
+  const [stats, setStats] = useState<ModelStats[]>([]);
+  const [lastUpdated, setLastUpdated] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Filters
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedType, setSelectedType] = useState<'all' | 'youtube' | 'blog'>('all');
+  
+  // Fetch news data
+  const fetchNews = useCallback(async () => {
+    try {
+      const params = new URLSearchParams();
+      if (selectedCategory) params.set('category', selectedCategory);
+      if (selectedType !== 'all') params.set('type', selectedType);
+      
+      const response = await fetch(`/api/news?${params.toString()}`);
+      if (!response.ok) throw new Error('Failed to fetch news');
+      
+      const data: NewsResponse = await response.json();
+      setContents(data.contents);
+      setStats(data.stats);
+      setLastUpdated(data.lastUpdated);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [selectedCategory, selectedType]);
+  
+  // Initial load
+  useEffect(() => {
+    fetchNews();
+  }, [fetchNews]);
+  
+  // Trigger content refresh (calls the cron endpoint)
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      const response = await fetch('/api/cron', { method: 'POST' });
+      const result = await response.json();
+      
+      if (result.success) {
+        // Refetch the news after processing
+        await fetchNews();
+      } else {
+        setError(result.error || 'Refresh failed');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Refresh failed');
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+  
+  // Handle comparison vote
+  const handleCompare = async (
+    contentId: string,
+    modelA: string,
+    modelB: string,
+    winner: string
+  ) => {
+    try {
+      await fetch('/api/ratings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contentId, modelA, modelB, winner }),
+      });
+      
+      // Refetch to update stats
+      await fetchNews();
+    } catch (err) {
+      console.error('Failed to record comparison:', err);
+    }
+  };
+  
+  // Handle rating
+  const handleRate = async (
+    contentId: string,
+    summaryId: string,
+    score: number
+  ) => {
+    try {
+      await fetch('/api/ratings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contentId, summaryId, score }),
+      });
+    } catch (err) {
+      console.error('Failed to save rating:', err);
+    }
+  };
+  
+  const formatLastUpdated = (dateStr: string) => {
+    if (!dateStr) return 'Never';
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffMins < 1440) return `${Math.floor(diffMins / 60)}h ago`;
+    return date.toLocaleDateString();
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+    <div className="min-h-screen bg-black">
+      {/* Gradient background */}
+      <div className="fixed inset-0 bg-gradient-to-br from-zinc-900 via-black to-zinc-900" />
+      <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-emerald-900/20 via-transparent to-transparent" />
+      
+      <div className="relative">
+        {/* Header */}
+        <header className="sticky top-0 z-50 backdrop-blur-xl bg-black/50 border-b border-zinc-800/50">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">🤖</span>
+                <div>
+                  <h1 className="text-xl font-bold text-white tracking-tight">AI News</h1>
+                  <p className="text-xs text-zinc-500">Aggregated & Summarized</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="text-xs text-zinc-600">
+                  Updated {formatLastUpdated(lastUpdated)}
+                </div>
+                <button
+                  onClick={async () => {
+                    await fetch('/api/cron/email', { method: 'POST' });
+                    alert('Email digest sent!');
+                  }}
+                  className="px-3 py-1.5 text-xs bg-zinc-800 text-zinc-300 rounded-lg hover:bg-zinc-700 transition-colors"
+                >
+                  📧 Send Digest
+                </button>
+              </div>
+            </div>
+          </div>
+        </header>
+        
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {/* Filter Bar */}
+          <div className="mb-8">
+            <FilterBar
+              selectedCategory={selectedCategory}
+              selectedType={selectedType}
+              onCategoryChange={setSelectedCategory}
+              onTypeChange={setSelectedType}
+              onRefresh={handleRefresh}
+              isLoading={isRefreshing}
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+          </div>
+          
+          {/* Error Message */}
+          {error && (
+            <div className="mb-8 p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
+              <p className="text-sm text-red-400">{error}</p>
+            </div>
+          )}
+          
+          {/* Loading State */}
+          {isLoading ? (
+            <div className="flex items-center justify-center py-20">
+              <div className="flex flex-col items-center gap-4">
+                <div className="w-8 h-8 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
+                <p className="text-sm text-zinc-500">Loading news...</p>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* News Feed */}
+              <div className="lg:col-span-2 space-y-6">
+                {contents.length === 0 ? (
+                  <div className="text-center py-20">
+                    <span className="text-4xl mb-4 block">📰</span>
+                    <h3 className="text-lg font-medium text-zinc-300 mb-2">No news yet</h3>
+                    <p className="text-sm text-zinc-500 mb-6">
+                      Click the refresh button to fetch the latest AI news
+                    </p>
+                    <button
+                      onClick={handleRefresh}
+                      disabled={isRefreshing}
+                      className="px-6 py-2.5 bg-emerald-500 text-black font-medium rounded-xl hover:bg-emerald-400 transition-colors disabled:opacity-50"
+                    >
+                      {isRefreshing ? 'Fetching...' : 'Fetch News'}
+                    </button>
+                  </div>
+                ) : (
+                  contents.map((content) => (
+                    <NewsCard
+                      key={content.id}
+                      content={content}
+                      onRate={handleRate}
+                      onCompare={handleCompare}
+                    />
+                  ))
+                )}
+              </div>
+              
+              {/* Sidebar - Model Stats */}
+              <div className="space-y-6">
+                <ModelStatsPanel stats={stats} />
+                
+                {/* Quick Stats */}
+                <div className="bg-zinc-900/80 backdrop-blur-sm rounded-2xl border border-zinc-800/50 p-6">
+                  <h2 className="text-lg font-semibold text-zinc-100 mb-4 flex items-center gap-2">
+                    <span>📈</span>
+                    Quick Stats
+                  </h2>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-4 bg-zinc-800/50 rounded-xl">
+                      <div className="text-2xl font-bold text-emerald-400">{contents.length}</div>
+                      <div className="text-xs text-zinc-500">Total Articles</div>
+                    </div>
+                    <div className="p-4 bg-zinc-800/50 rounded-xl">
+                      <div className="text-2xl font-bold text-blue-400">{stats.length}</div>
+                      <div className="text-xs text-zinc-500">Models Tested</div>
+                    </div>
+                    <div className="p-4 bg-zinc-800/50 rounded-xl">
+                      <div className="text-2xl font-bold text-purple-400">
+                        {contents.filter(c => c.sourceType === 'youtube').length}
+                      </div>
+                      <div className="text-xs text-zinc-500">YouTube</div>
+                    </div>
+                    <div className="p-4 bg-zinc-800/50 rounded-xl">
+                      <div className="text-2xl font-bold text-amber-400">
+                        {contents.filter(c => c.sourceType === 'blog').length}
+                      </div>
+                      <div className="text-xs text-zinc-500">Blog Posts</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </main>
+        
+        {/* Footer */}
+        <footer className="border-t border-zinc-800/50 mt-16">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <p className="text-center text-xs text-zinc-600">
+              AI News Aggregator • Powered by Vercel AI SDK v5 + OpenRouter
+            </p>
+          </div>
+        </footer>
+      </div>
     </div>
   );
 }
