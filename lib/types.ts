@@ -1,5 +1,5 @@
 // Source types
-export type SourceType = 'youtube' | 'blog';
+export type SourceType = 'youtube' | 'blog' | 'twitter';
 
 export interface Source {
   id: string;

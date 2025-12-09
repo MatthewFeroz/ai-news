@@ -16,21 +16,21 @@ interface YouTubeRSSItem {
  */
 function parseYouTubeRSS(xml: string): YouTubeRSSItem[] {
   const items: YouTubeRSSItem[] = [];
-  
+
   // Simple regex-based parsing for YouTube RSS
   const entryRegex = /<entry>([\s\S]*?)<\/entry>/g;
   let match;
-  
+
   while ((match = entryRegex.exec(xml)) !== null) {
     const entry = match[1];
-    
+
     const videoId = entry.match(/<yt:videoId>([^<]+)<\/yt:videoId>/)?.[1] || '';
     const title = entry.match(/<title>([^<]+)<\/title>/)?.[1] || '';
     const link = entry.match(/<link rel="alternate" href="([^"]+)"/)?.[1] || '';
     const published = entry.match(/<published>([^<]+)<\/published>/)?.[1] || '';
     const author = entry.match(/<author>[\s\S]*?<name>([^<]+)<\/name>/)?.[1] || '';
     const thumbnail = entry.match(/<media:thumbnail[^>]+url="([^"]+)"/)?.[1] || '';
-    
+
     if (videoId && title) {
       items.push({
         id: videoId,
@@ -42,7 +42,7 @@ function parseYouTubeRSS(xml: string): YouTubeRSSItem[] {
       });
     }
   }
-  
+
   return items.slice(0, FETCH_CONFIG.maxItemsPerSource);
 }
 
@@ -66,12 +66,12 @@ async function fetchTranscript(videoId: string): Promise<string> {
   try {
     const transcript = await YoutubeTranscript.fetchTranscript(videoId);
     const text = transcript.map(item => item.text).join(' ');
-    
+
     // Truncate if too long
     if (text.length > FETCH_CONFIG.maxContentLength) {
       return text.slice(0, FETCH_CONFIG.maxContentLength) + '...';
     }
-    
+
     return text;
   } catch (error) {
     console.error(`Failed to fetch transcript for ${videoId}:`, error);
@@ -87,24 +87,24 @@ async function fetchChannelVideos(source: Source): Promise<RawContent[]> {
     const response = await fetch(source.url, {
       signal: AbortSignal.timeout(FETCH_CONFIG.fetchTimeoutMs),
     });
-    
+
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
-    
+
     const xml = await response.text();
     const items = parseYouTubeRSS(xml);
-    
+
     // Fetch transcripts for each video - only include videos with actual transcripts
     const contentPromises = items.map(async (item) => {
       const transcript = await fetchTranscript(item.id);
-      
+
       // Skip videos without transcripts - they can't be properly summarized
       if (!transcript || transcript.length < 100) {
         console.log(`Skipping video "${item.title}" - no transcript available`);
         return null;
       }
-      
+
       return {
         id: `yt-${item.id}`,
         sourceId: source.id,
@@ -116,9 +116,9 @@ async function fetchChannelVideos(source: Source): Promise<RawContent[]> {
         author: item.author,
       };
     });
-    
+
     const results = await Promise.all(contentPromises);
-    return results.filter((item): item is RawContent => item !== null);
+    return results.filter((item): item is NonNullable<typeof item> => item !== null);
   } catch (error) {
     console.error(`Failed to fetch YouTube channel ${source.name}:`, error);
     return [];
@@ -134,18 +134,18 @@ export async function fetchAllYouTubeContent(sourceIds?: string[]): Promise<RawC
   const sources = sourceIds && sourceIds.length > 0
     ? YOUTUBE_SOURCES.filter(s => sourceIds.includes(s.id))
     : YOUTUBE_SOURCES;
-  
+
   if (sources.length === 0) {
     console.log('No YouTube sources to fetch (none selected or configured)');
     return [];
   }
-  
+
   console.log(`Fetching from ${sources.length} YouTube channel(s): ${sources.map(s => s.name).join(', ')}`);
-  
+
   const results = await Promise.all(
     sources.map(source => fetchChannelVideos(source))
   );
-  
+
   return results.flat();
 }
 

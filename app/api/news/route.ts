@@ -13,7 +13,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const category = searchParams.get('category');
     const source = searchParams.get('source');
-    const type = searchParams.get('type'); // 'youtube' or 'blog'
+    const type = searchParams.get('type'); // 'youtube', 'blog', or 'twitter'
     
     // Get all content and stats
     let contents = await getContents();
@@ -31,7 +31,7 @@ export async function GET(request: Request) {
       contents = contents.filter(c => c.sourceId === source);
     }
     
-    if (type === 'youtube' || type === 'blog') {
+    if (type === 'youtube' || type === 'blog' || type === 'twitter') {
       contents = contents.filter(c => c.sourceType === type);
     }
     

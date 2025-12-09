@@ -56,7 +56,7 @@ export default function Home() {
   
   // Filters
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [selectedType, setSelectedType] = useState<'all' | 'youtube' | 'blog'>('all');
+  const [selectedType, setSelectedType] = useState<'all' | 'youtube' | 'blog' | 'twitter'>('all');
   
   // Initialize selected sources from localStorage on mount
   useEffect(() => {
@@ -329,6 +329,12 @@ export default function Home() {
                         {contents.filter(c => c.sourceType === 'blog').length}
                       </div>
                       <div className="text-xs text-zinc-500">Blog Posts</div>
+                    </div>
+                    <div className="p-4 bg-zinc-800/50 rounded-xl">
+                      <div className="text-2xl font-bold text-blue-400">
+                        {contents.filter(c => c.sourceType === 'twitter').length}
+                      </div>
+                      <div className="text-xs text-zinc-500">Twitter</div>
                     </div>
                   </div>
                 </div>

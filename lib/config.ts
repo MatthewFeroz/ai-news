@@ -22,15 +22,52 @@ export const BLOG_SOURCES: Source[] = [
   },
 ];
 
+// Twitter sources - configure usernames (with or without @) or search queries
+// Examples:
+// - Username: '@openai' or 'openai' (fetches tweets from that user)
+// - Hashtag: '#AI' (fetches tweets with that hashtag)
+// - Search: 'AI news -is:retweet' (fetches tweets matching search query)
+export const TWITTER_SOURCES: Source[] = [
+  {
+    id: 'karpathy-twitter',
+    name: 'Andrej Karpathy',
+    type: 'twitter',
+    url: '@karpathy',
+    icon: '🧠',
+  },
+  {
+    id: 'anthropic-twitter',
+    name: 'Anthropic',
+    type: 'twitter',
+    url: '@AnthropicAI',
+    icon: '🔮',
+  },
+  {
+    id: 'openai-twitter',
+    name: 'OpenAI',
+    type: 'twitter',
+    url: '@OpenAI',
+    icon: '🤖',
+  },
+  {
+    id: 'gemini-twitter',
+    name: 'Gemini',
+    type: 'twitter',
+    url: '@GeminiApp',
+    icon: '✨',
+  },
+];
+
 // All sources combined
-export const ALL_SOURCES: Source[] = [...YOUTUBE_SOURCES, ...BLOG_SOURCES];
+export const ALL_SOURCES: Source[] = [...YOUTUBE_SOURCES, ...BLOG_SOURCES, ...TWITTER_SOURCES];
 
 // Model pool for A/B testing - using OpenRouter model IDs
+// Using cost-effective models only (Claude Haiku removed - 5x more expensive)
 export const MODEL_POOL = [
   {
-    id: 'anthropic/claude-haiku-4.5',
-    name: 'Claude Haiku 4.5',
-    provider: 'Anthropic',
+    id: 'deepseek/deepseek-v3.2',
+    name: 'DeepSeek V3.2',
+    provider: 'DeepSeek',
   },
   {
     id: 'openai/gpt-4o-mini',
@@ -55,7 +92,7 @@ export const CATEGORIES = [
 
 // Fetch settings
 export const FETCH_CONFIG = {
-  maxItemsPerSource: 5, // Max items to fetch per source
+  maxItemsPerSource: 10, // Max items to fetch per source
   maxContentLength: 15000, // Max characters of content to send to AI
   fetchTimeoutMs: 30000, // 30 second timeout
 };

@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 import { fetchAllYouTubeContent } from '@/lib/services/youtube';
 import { fetchAllBlogContent } from '@/lib/services/blogs';
+import { fetchAllTwitterContent } from '@/lib/services/twitter';
 import { processAllContent } from '@/lib/ai/process';
+import { createDailyDigest, batchProcessBySource } from '@/lib/ai/batch-process';
 import { addContents } from '@/lib/services/storage';
-import { YOUTUBE_SOURCES, BLOG_SOURCES } from '@/lib/config';
+import { YOUTUBE_SOURCES, BLOG_SOURCES, TWITTER_SOURCES } from '@/lib/config';
 
 // Vercel Cron configuration
 export const maxDuration = 60; // Allow up to 60 seconds for processing
@@ -22,7 +24,7 @@ export async function GET(request: Request) {
       console.error('CRON_SECRET environment variable is not configured');
       return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 });
     }
-    
+
     // Verify the authorization header
     const authHeader = request.headers.get('authorization');
     if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -45,7 +47,9 @@ export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
     const sourceIds: string[] | undefined = body.sourceIds;
-    
+    // Batch mode: combine all tweets into a single summary (much cheaper)
+    const useBatchMode: boolean = body.batchMode ?? true;
+
     // Validate sourceIds if provided
     if (sourceIds && !Array.isArray(sourceIds)) {
       return NextResponse.json(
@@ -53,19 +57,19 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-    
+
     // Filter to only valid source IDs
-    const allSourceIds = [...YOUTUBE_SOURCES, ...BLOG_SOURCES].map(s => s.id);
+    const allSourceIds = [...YOUTUBE_SOURCES, ...BLOG_SOURCES, ...TWITTER_SOURCES].map(s => s.id);
     const validSourceIds = sourceIds?.filter(id => allSourceIds.includes(id));
-    
+
     if (sourceIds && validSourceIds && validSourceIds.length === 0) {
       return NextResponse.json(
         { error: 'No valid source IDs provided' },
         { status: 400 }
       );
     }
-    
-    return fetchAndProcessContent(validSourceIds);
+
+    return fetchAndProcessContent(validSourceIds, useBatchMode);
   } catch (error) {
     console.error('Failed to parse request body:', error);
     return NextResponse.json(
@@ -78,32 +82,37 @@ export async function POST(request: Request) {
 /**
  * Core fetch and process logic
  * @param sourceIds - Optional array of source IDs. If undefined, fetches all sources.
+ * @param batchMode - If true, combines all content into single digest (cheaper). Default: true
  */
-async function fetchAndProcessContent(sourceIds?: string[]) {
+async function fetchAndProcessContent(sourceIds?: string[], batchMode: boolean = true) {
   try {
     const isSelectiveFetch = sourceIds && sourceIds.length > 0;
-    console.log(isSelectiveFetch 
+    console.log(isSelectiveFetch
       ? `Starting selective content fetch for ${sourceIds.length} source(s)...`
       : 'Starting full content fetch from all sources...'
     );
-    
-    // Separate YouTube and blog source IDs
-    const youtubeIds = sourceIds?.filter(id => 
+
+    // Separate source IDs by type
+    const youtubeIds = sourceIds?.filter(id =>
       YOUTUBE_SOURCES.some(s => s.id === id)
     );
-    const blogIds = sourceIds?.filter(id => 
+    const blogIds = sourceIds?.filter(id =>
       BLOG_SOURCES.some(s => s.id === id)
     );
-    
+    const twitterIds = sourceIds?.filter(id =>
+      TWITTER_SOURCES.some(s => s.id === id)
+    );
+
     // Fetch content from selected sources in parallel
-    const [youtubeContent, blogContent] = await Promise.all([
+    const [youtubeContent, blogContent, twitterContent] = await Promise.all([
       fetchAllYouTubeContent(youtubeIds),
       fetchAllBlogContent(blogIds),
+      fetchAllTwitterContent(twitterIds),
     ]);
-    
-    const allContent = [...youtubeContent, ...blogContent];
-    console.log(`Fetched ${allContent.length} items (${youtubeContent.length} YouTube, ${blogContent.length} blogs)`);
-    
+
+    const allContent = [...youtubeContent, ...blogContent, ...twitterContent];
+    console.log(`Fetched ${allContent.length} items (${youtubeContent.length} YouTube, ${blogContent.length} blogs, ${twitterContent.length} Twitter)`);
+
     if (allContent.length === 0) {
       return NextResponse.json({
         success: true,
@@ -113,15 +122,27 @@ async function fetchAndProcessContent(sourceIds?: string[]) {
         sourcesRequested: sourceIds?.length || 'all',
       });
     }
-    
+
     // Process content with AI
-    console.log('Processing content with AI...');
-    const processedContent = await processAllContent(allContent);
-    console.log(`Processed ${processedContent.length} items`);
-    
+    // Batch mode: single combined summary (cost effective)
+    // Normal mode: individual summaries per item (more detailed but expensive)
+    console.log(`Processing content with AI (batch mode: ${batchMode})...`);
+
+    let processedContent;
+    if (batchMode) {
+      // Create a single digest combining all tweets
+      const digest = await createDailyDigest(allContent);
+      processedContent = digest ? [digest] : [];
+    } else {
+      // Process each item individually with 2 models (more expensive)
+      processedContent = await processAllContent(allContent);
+    }
+
+    console.log(`Processed into ${processedContent.length} item(s)`);
+
     // Store the processed content
     await addContents(processedContent);
-    
+
     return NextResponse.json({
       success: true,
       message: 'Content fetched and processed successfully',
@@ -133,9 +154,9 @@ async function fetchAndProcessContent(sourceIds?: string[]) {
   } catch (error) {
     console.error('Cron job failed:', error);
     return NextResponse.json(
-      { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Unknown error' 
+      {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
       },
       { status: 500 }
     );

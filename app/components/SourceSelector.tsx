@@ -1,6 +1,6 @@
 'use client';
 
-import { YOUTUBE_SOURCES, BLOG_SOURCES } from '@/lib/config';
+import { YOUTUBE_SOURCES, BLOG_SOURCES, TWITTER_SOURCES } from '@/lib/config';
 
 interface SourceSelectorProps {
   selectedSources: string[];
@@ -36,6 +36,7 @@ export function SourceSelector({
 
   const youtubeSelected = YOUTUBE_SOURCES.filter(s => selectedSources.includes(s.id)).length;
   const blogSelected = BLOG_SOURCES.filter(s => selectedSources.includes(s.id)).length;
+  const twitterSelected = TWITTER_SOURCES.filter(s => selectedSources.includes(s.id)).length;
 
   return (
     <div className="relative" onClick={(e) => e.stopPropagation()}>
@@ -49,7 +50,7 @@ export function SourceSelector({
         </svg>
         <span className="text-sm text-zinc-300">Sources</span>
         <span className="text-xs text-zinc-500 bg-zinc-700/50 px-2 py-0.5 rounded-full">
-          {selectedSources.length}/{YOUTUBE_SOURCES.length + BLOG_SOURCES.length}
+          {selectedSources.length}/{YOUTUBE_SOURCES.length + BLOG_SOURCES.length + TWITTER_SOURCES.length}
         </span>
         <svg
           className={`w-4 h-4 text-zinc-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}
@@ -116,7 +117,7 @@ export function SourceSelector({
             </div>
 
             {/* AI Labs Section */}
-            <div>
+            <div className="mb-4">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <span className="text-blue-400">🏢</span>
@@ -141,6 +142,49 @@ export function SourceSelector({
               </div>
               <div className="space-y-1 max-h-48 overflow-y-auto scrollbar-hide">
                 {BLOG_SOURCES.map(source => (
+                  <label
+                    key={source.id}
+                    className="flex items-center gap-3 p-2 rounded-lg hover:bg-zinc-800/50 cursor-pointer transition-colors"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedSources.includes(source.id)}
+                      onChange={() => toggleSource(source.id)}
+                      className="w-4 h-4 rounded border-zinc-600 bg-zinc-800 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-0"
+                    />
+                    <span className="text-lg">{source.icon}</span>
+                    <span className="text-sm text-zinc-300">{source.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Twitter Section */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-blue-400">🐦</span>
+                  <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                    Twitter ({twitterSelected}/{TWITTER_SOURCES.length})
+                  </span>
+                </div>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => selectAll(TWITTER_SOURCES)}
+                    className="text-[10px] text-emerald-400 hover:text-emerald-300 px-1.5 py-0.5 rounded bg-emerald-500/10 hover:bg-emerald-500/20"
+                  >
+                    All
+                  </button>
+                  <button
+                    onClick={() => deselectAll(TWITTER_SOURCES)}
+                    className="text-[10px] text-zinc-400 hover:text-zinc-300 px-1.5 py-0.5 rounded bg-zinc-500/10 hover:bg-zinc-500/20"
+                  >
+                    None
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-1 max-h-48 overflow-y-auto scrollbar-hide">
+                {TWITTER_SOURCES.map(source => (
                   <label
                     key={source.id}
                     className="flex items-center gap-3 p-2 rounded-lg hover:bg-zinc-800/50 cursor-pointer transition-colors"

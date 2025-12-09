@@ -4,9 +4,9 @@ import { CATEGORIES, ALL_SOURCES } from '@/lib/config';
 
 interface FilterBarProps {
   selectedCategory: string | null;
-  selectedType: 'all' | 'youtube' | 'blog';
+  selectedType: 'all' | 'youtube' | 'blog' | 'twitter';
   onCategoryChange: (category: string | null) => void;
-  onTypeChange: (type: 'all' | 'youtube' | 'blog') => void;
+  onTypeChange: (type: 'all' | 'youtube' | 'blog' | 'twitter') => void;
   onRefresh: () => void;
   isLoading: boolean;
 }
@@ -29,10 +29,11 @@ export function FilterBar({
             { id: 'all', label: 'All' },
             { id: 'youtube', label: 'YouTube' },
             { id: 'blog', label: 'Blogs' },
+            { id: 'twitter', label: 'Twitter' },
           ].map((type) => (
             <button
               key={type.id}
-              onClick={() => onTypeChange(type.id as 'all' | 'youtube' | 'blog')}
+              onClick={() => onTypeChange(type.id as 'all' | 'youtube' | 'blog' | 'twitter')}
               className={`px-3 py-1.5 text-xs rounded-lg transition-all ${
                 selectedType === type.id
                   ? 'bg-white text-black font-medium'
