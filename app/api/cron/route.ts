@@ -103,15 +103,52 @@ async function fetchAndProcessContent(sourceIds?: string[], batchMode: boolean =
       TWITTER_SOURCES.some(s => s.id === id)
     );
 
+    // ============================================
+    // STAGE 1: COLLECTION (no AI costs yet)
+    // ============================================
     // Fetch content from selected sources in parallel
-    const [youtubeContent, blogContent, twitterContent] = await Promise.all([
-      fetchAllYouTubeContent(youtubeIds),
-      fetchAllBlogContent(blogIds),
-      fetchAllTwitterContent(twitterIds),
-    ]);
+    // Track which sources failed so we can report them
+    let youtubeContent: Awaited<ReturnType<typeof fetchAllYouTubeContent>> = [];
+    let blogContent: Awaited<ReturnType<typeof fetchAllBlogContent>> = [];
+    let twitterContent: Awaited<ReturnType<typeof fetchAllTwitterContent>> = [];
+    const fetchErrors: string[] = [];
+
+    try {
+      [youtubeContent, blogContent, twitterContent] = await Promise.all([
+        fetchAllYouTubeContent(youtubeIds),
+        fetchAllBlogContent(blogIds),
+        fetchAllTwitterContent(twitterIds),
+      ]);
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown fetch error';
+      fetchErrors.push(errorMsg);
+    }
 
     const allContent = [...youtubeContent, ...blogContent, ...twitterContent];
     console.log(`Fetched ${allContent.length} items (${youtubeContent.length} YouTube, ${blogContent.length} blogs, ${twitterContent.length} Twitter)`);
+
+    // Check if we got content from all SELECTED Twitter sources
+    const selectedTwitterSources = twitterIds?.length || TWITTER_SOURCES.length;
+    const fetchedTwitterSources = new Set(twitterContent.map(c => c.sourceId)).size;
+
+    if (fetchedTwitterSources < selectedTwitterSources) {
+      const missing = selectedTwitterSources - fetchedTwitterSources;
+      console.warn(`⚠️ Only fetched from ${fetchedTwitterSources}/${selectedTwitterSources} Twitter sources (${missing} failed)`);
+
+      // Continue with partial data instead of failing completely
+      // This allows demos and partial processing when rate limited
+      if (fetchedTwitterSources === 0 && twitterContent.length === 0) {
+        // Only fail if we got ZERO content from Twitter (complete failure)
+        return NextResponse.json({
+          success: false,
+          error: `Twitter fetch failed completely. This is likely due to rate limits. Wait a minute and try again, or enable TWITTER_DEMO_MODE in config.ts.`,
+          fetched: allContent.length,
+          processed: 0,
+          hint: 'Set TWITTER_DEMO_MODE = true in lib/config.ts to use demo tweets instead.',
+        });
+      }
+      // Otherwise continue with partial results
+    }
 
     if (allContent.length === 0) {
       return NextResponse.json({
@@ -122,6 +159,10 @@ async function fetchAndProcessContent(sourceIds?: string[], batchMode: boolean =
         sourcesRequested: sourceIds?.length || 'all',
       });
     }
+
+    // ============================================
+    // STAGE 2: AI ANALYSIS (only if Stage 1 succeeded)
+    // ============================================
 
     // Process content with AI
     // Batch mode: single combined summary (cost effective)

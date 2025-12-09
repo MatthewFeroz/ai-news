@@ -27,36 +27,32 @@ export function FilterBar({
         <div className="flex gap-1">
           {[
             { id: 'all', label: 'All' },
-            { id: 'youtube', label: 'YouTube' },
-            { id: 'blog', label: 'Blogs' },
             { id: 'twitter', label: 'Twitter' },
           ].map((type) => (
             <button
               key={type.id}
               onClick={() => onTypeChange(type.id as 'all' | 'youtube' | 'blog' | 'twitter')}
-              className={`px-3 py-1.5 text-xs rounded-lg transition-all ${
-                selectedType === type.id
+              className={`px-3 py-1.5 text-xs rounded-lg transition-all ${selectedType === type.id
                   ? 'bg-white text-black font-medium'
                   : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
-              }`}
+                }`}
             >
               {type.label}
             </button>
           ))}
         </div>
       </div>
-      
+
       {/* Category Filter */}
       <div className="flex items-center gap-2 flex-1 overflow-x-auto scrollbar-hide">
         <span className="text-xs text-zinc-500 uppercase tracking-wider flex-shrink-0">Category</span>
         <div className="flex gap-1">
           <button
             onClick={() => onCategoryChange(null)}
-            className={`px-3 py-1.5 text-xs rounded-lg transition-all flex-shrink-0 ${
-              selectedCategory === null
+            className={`px-3 py-1.5 text-xs rounded-lg transition-all flex-shrink-0 ${selectedCategory === null
                 ? 'bg-white text-black font-medium'
                 : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
-            }`}
+              }`}
           >
             All
           </button>
@@ -64,11 +60,10 @@ export function FilterBar({
             <button
               key={category.id}
               onClick={() => onCategoryChange(category.id)}
-              className={`px-3 py-1.5 text-xs rounded-lg transition-all flex-shrink-0 ${
-                selectedCategory === category.id
+              className={`px-3 py-1.5 text-xs rounded-lg transition-all flex-shrink-0 ${selectedCategory === category.id
                   ? 'font-medium'
                   : 'bg-zinc-800 hover:bg-zinc-700'
-              }`}
+                }`}
               style={{
                 backgroundColor: selectedCategory === category.id ? `${category.color}30` : undefined,
                 color: selectedCategory === category.id ? category.color : '#a1a1aa',
@@ -79,7 +74,7 @@ export function FilterBar({
           ))}
         </div>
       </div>
-      
+
       {/* Refresh Button */}
       <button
         onClick={onRefresh}
